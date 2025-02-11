@@ -1,0 +1,9 @@
+The student is working on a chess problem or situation and needs practical advice, such as which piece to move and why,
+and thet goew with his current situation.
+
+Generate a concise and clear help message for the student: (). 
+The message must be direct and tailored to the student's level of understanding, 
+providing a hint or the actual help needed for their current situation. 
+
+Do not ask any questions, include introductions, or add unnecessary context. 
+Only provide actionable guidance in a polite and encouraging tone. 

@@ -1,0 +1,747 @@
+: you got this message from the teacher: תשלחי עזרה לדני
+
+
+
+detect the language of the message in the line above, wich you got from the teacher, and answer the teacher with **the same language** 
+(for example: if the message above is in Hebrew, generate your answer in Hebrew.
+if the message above is in Arabic, you're response must be in Arabic,
+if the message above is in English, you're response must be in English, and so on)
+
+
+
+and you have this data that is relevant to the teacher:
+
+
+
+
+
+class_data: [
+    {
+        "id": 2,
+        "name": "לב טוב ד'1",
+        "students": [
+            {
+                "id": 18,
+                "fullName": "זהר לוי",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 413,
+                "fullName": "מיכאל בדיקה",
+                "isOnline": false,
+                "lastHeartbeat": {
+                    "year": 2025,
+                    "month": 1,
+                    "day": 30,
+                    "hour": 15,
+                    "minute": 56,
+                    "second": 25
+                },
+                "helpRequested": false
+            },
+            {
+                "id": 422,
+                "fullName": "יהונתן בדיקה",
+                "isOnline": false,
+                "lastHeartbeat": {
+                    "year": 2025,
+                    "month": 1,
+                    "day": 29,
+                    "hour": 10,
+                    "minute": 22,
+                    "second": 55
+                },
+                "helpRequested": false
+            },
+            {
+                "id": 573,
+                "fullName": "Yehuda",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 575,
+                "fullName": "Denis Devdino",
+                "isOnline": true,
+                "lastHeartbeat": {
+                    "year": 2025,
+                    "month": 2,
+                    "day": 10,
+                    "hour": 13,
+                    "minute": 54,
+                    "second": 4
+                },
+                "helpRequested": false
+            },
+            {
+                "id": 593,
+                "fullName": "Naya tester",
+                "isOnline": false,
+                "lastHeartbeat": {
+                    "year": 2025,
+                    "month": 1,
+                    "day": 23,
+                    "hour": 6,
+                    "minute": 5,
+                    "second": 7
+                },
+                "helpRequested": false
+            },
+            {
+                "id": 594,
+                "fullName": "Priyal Shah",
+                "isOnline": false,
+                "lastHeartbeat": {
+                    "year": 2025,
+                    "month": 1,
+                    "day": 23,
+                    "hour": 6,
+                    "minute": 23,
+                    "second": 16
+                },
+                "helpRequested": false
+            },
+            {
+                "id": 595,
+                "fullName": "Roi",
+                "isOnline": false,
+                "lastHeartbeat": {
+                    "year": 2025,
+                    "month": 1,
+                    "day": 23,
+                    "hour": 6,
+                    "minute": 42,
+                    "second": 20
+                },
+                "helpRequested": false
+            },
+            {
+                "id": 599,
+                "fullName": "Iris",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            }
+        ]
+    },
+    {
+        "id": 3,
+        "name": "נסיונות א'1",
+        "students": [
+            {
+                "id": 17,
+                "fullName": "בן מינץ",
+                "isOnline": false,
+                "lastHeartbeat": {
+                    "year": 2024,
+                    "month": 8,
+                    "day": 6,
+                    "hour": 23,
+                    "minute": 4,
+                    "second": 9
+                },
+                "helpRequested": false
+            },
+            {
+                "id": 19,
+                "fullName": "מיכל",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": true
+            },
+            {
+                "id": 87,
+                "fullName": "Tal Test",
+                "isOnline": true,
+                "lastHeartbeat": {
+                    "year": 2025,
+                    "month": 2,
+                    "day": 10,
+                    "hour": 13,
+                    "minute": 53,
+                    "second": 14
+                },
+                "helpRequested": false
+            },
+            {
+                "id": 317,
+                "fullName": "יורי",
+                "isOnline": false,
+                "lastHeartbeat": {
+                    "year": 2024,
+                    "month": 10,
+                    "day": 7,
+                    "hour": 17,
+                    "minute": 24,
+                    "second": 45
+                },
+                "helpRequested": true
+            },
+            {
+                "id": 318,
+                "fullName": "www",
+                "isOnline": false,
+                "lastHeartbeat": {
+                    "year": 2024,
+                    "month": 8,
+                    "day": 20,
+                    "hour": 21,
+                    "minute": 5,
+                    "second": 56
+                },
+                "helpRequested": false
+            },
+            {
+                "id": 395,
+                "fullName": "גיא",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 396,
+                "fullName": "דני",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 401,
+                "fullName": "שלומי",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": true
+            },
+            {
+                "id": 402,
+                "fullName": "רונית",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            }
+        ]
+    },
+    {
+        "id": 12,
+        "name": "ברנר ה'1",
+        "students": [
+            {
+                "id": 231,
+                "fullName": "תמר אבני",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 232,
+                "fullName": "דן אופר",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 233,
+                "fullName": "שי איתן",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 234,
+                "fullName": "נוגה בודרה",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 235,
+                "fullName": "שני בורדה",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 236,
+                "fullName": "דניאל בינדר",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 237,
+                "fullName": "יעל בלאט",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 238,
+                "fullName": "עידו בשן",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 239,
+                "fullName": "נוגה גורן",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 240,
+                "fullName": "אריה גלימברג",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 241,
+                "fullName": "איתי גרסטנזנג",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 242,
+                "fullName": "קים דוד",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 243,
+                "fullName": "אריאל חבקין",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 244,
+                "fullName": "אבירם חי",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 245,
+                "fullName": "אורי טורס",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 246,
+                "fullName": "זיו יצחאיק",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 247,
+                "fullName": "בר יציב",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 248,
+                "fullName": "מאיה ירון",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 249,
+                "fullName": "גיא לוין",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 250,
+                "fullName": "תמר לידסקי ",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 251,
+                "fullName": "אמילי מייזליש",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 252,
+                "fullName": "שירה נהרי",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 253,
+                "fullName": "איתמר נוה",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 254,
+                "fullName": "הילי סנדרוביץ",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 255,
+                "fullName": "יונתן עוזיאלי",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 256,
+                "fullName": "יואב עמיחי",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 257,
+                "fullName": "אלון פז ",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 258,
+                "fullName": "עילי קורין",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 259,
+                "fullName": "עומר רובין",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 260,
+                "fullName": "ענבר רובין",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 261,
+                "fullName": "אמה רוזנפלד",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 262,
+                "fullName": "אלון שוחט",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 263,
+                "fullName": "יואב שטרנברג",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            }
+        ]
+    },
+    {
+        "id": 14,
+        "name": "ברנר ו'1",
+        "students": [
+            {
+                "id": 296,
+                "fullName": "אלה אלטון",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 297,
+                "fullName": "יקיר אלקלעי",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 298,
+                "fullName": "עדי בירנבום",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 299,
+                "fullName": "יובל בקר",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 300,
+                "fullName": "איטן גוטוירט",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 301,
+                "fullName": "מאיה גולדמברג",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 302,
+                "fullName": "סהר גולן",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 303,
+                "fullName": "גיא גלזר",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 304,
+                "fullName": "לוטם דנה",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 305,
+                "fullName": "בן ויידנבאום ",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 306,
+                "fullName": "זואי ויינשטיין",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 307,
+                "fullName": "אביב וינשטיין ",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 308,
+                "fullName": "אמילי ז`יטניקוב",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 309,
+                "fullName": "איילה חנאל",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 310,
+                "fullName": "אביב טלמור ",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 311,
+                "fullName": "בן טפר",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 312,
+                "fullName": "ליאן ליבנה",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 313,
+                "fullName": "אריאל מור",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 314,
+                "fullName": "אדל מזרחי",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 315,
+                "fullName": "עלמה עזוז",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 382,
+                "fullName": "אדם פרייזלר",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 383,
+                "fullName": "מאיה קמחי",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 384,
+                "fullName": "איתמר קפנר",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 385,
+                "fullName": "גאיה קרני",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 386,
+                "fullName": "נועם רינסקי",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 387,
+                "fullName": "רום שגב",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 388,
+                "fullName": "מיקה שמיר",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            },
+            {
+                "id": 389,
+                "fullName": "אמה שראל",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            }
+        ]
+    },
+    {
+        "id": 24,
+        "name": "א1",
+        "students": [
+            {
+                "id": 600,
+                "fullName": "Miriam",
+                "isOnline": false,
+                "lastHeartbeat": null,
+                "helpRequested": false
+            }
+        ]
+    }
+]
+
+
+ 
+
+
+### **Conversation Flow & Request Handling**  
+
+
+0. **Make Your Answers Generically Gender Coordinated** 
+    If you are answering in Hebrew, adapt your answer to be generic gender wise, for example, 
+    if you want to speak to the user in the present body, then say "אתם", "ברוכים הבאים","אני כאן כדי לעזור לכם" 
+    instead of saying: "אתה", "ברוך הבא", אני כאן כדי לעזור לך"", and so on.
+
+1. **New Conversation Detection:**  
+   - If the teacher's message suggests a new conversation (e.g., "hi," a single dot, or anything to check your presence), start yor response with greeting them by name
+   (very Important to start with greeting them in this case!!).  
+   - Ask how you can assist them today.  
+   - Provide examples of help you can offer, such as:  
+     - Starting a new lesson  
+     - Getting class information  
+     - Sending lesson updates  
+     - Sending help to students  
+     - Any other assistance  
+
+2. **Class Information Requests:**  
+   - If the teacher asks for details about one of their classes, provide a list of students (with IDs and names) for the relevant classes.  
+   - If they don’t specify a class, ask if they need details about a specific class or a summary of all their classes.  
+
+3. **Starting a Lesson:**  
+   - Ask which class they want to start the lesson with.  
+   - Once they specify a class name or ID, provide relevant details and assist in starting the lesson.  
+
+4. **Most Advanced Students:**  
+   - If the teacher asks about the most advanced students without specifying a number, list the **top three students** or **15% of the students (whichever is greater)**.  
+   - Sort the students in **increasing order** based on "lessonProgress" parameter.  
+   - Add a short, encouraging note to motivate the teacher.  
+
+5. **Least Advanced Students:**  
+   - If the teacher asks about the least advanced students without specifying a number, list the **bottom three students** or **15% of the students (whichever is greater)**.  
+   - Sort the students in **increasing order** based on "lessonProgress" parameter. 
+   - After sharing the data, suggest a relevant tip or hint that the teacher can share with these students to support their progress.  
+
+6. **Generating Lists or Tables:**  
+   - If the teacher requests a list or table, ensure the response is **concise and WhatsApp-friendly**.  
+   - Avoid overly large messages, but provide enough details to be useful.  
+
+7. **Student Information Requests:**  
+   - If the teacher asks **who their students are** (e.g., "Who do I teach?"), provide a brief, **organized list of students grouped by class**.  
+
+8. **Sending Help to Students:**  
+   - If the teacher’s message clearly indicates they want to send help or a hint to a student:  
+     - **Start the response with:** `#SENDING_HELP` (with a relevant emoji).  
+     - **On a new line, inform the teacher** that help is being sent to the specified student.  
+     - **Mention the student’s first name** (if the name has two words, use only the first part).  
+     - **Include the student's ID** (and no other numbers in the same response).  
+     - **Do not ask follow-up questions**—simply confirm that the help is being sent.  
+
+9. **Class Overview:**  
+   - If the teacher informs you that they are in a specific class, immediately provide a **general status update** about the class and its students
+   which should include general info about the situation of the students, such as: who is online and ho is not, and general short thinds like this.  
+ 
+
+### **Additional Notes:**  
+- Adapt responses to match the teacher’s **language and tone**.  
+- Keep all responses **brief yet informative**.  
+- **Always** match the teacher’s most recent message language.  
+
+

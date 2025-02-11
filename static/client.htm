@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Angelina Test Bed</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #ece5dd;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 1px solid #ccc;
+            margin: 10px;
+            border-radius: 10px;
+            background-color: #ffffff;
+        }
+        .messages {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        .messages .message {
+            margin: 5px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .messages .message.user {
+            background-color: #dcf8c6;
+            align-self: flex-end;
+        }
+        .messages .message.server {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            align-self: flex-start;
+        }
+        .input-container {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ccc;
+            background-color: #f0f0f0;
+        }
+        .input-container input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        .input-container button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background-color: #25d366;
+            color: white;
+            cursor: pointer;
+        }
+        .input-container button.loading {
+            background-color: #ddd;
+            cursor: not-allowed;
+        }
+        .input-container button.loading::after {
+            content: "";
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ddd;
+            border-top: 3px solid #25d366;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="messages" id="messages"></div>
+        <div class="input-container">
+            <input type="text" id="messageInput" placeholder="Type a message">
+            <button id="sendButton" onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        function sendMessage() {
+            var messageInput = document.getElementById('messageInput');
+            var sendButton = document.getElementById('sendButton');
+            var messages = document.getElementById('messages');
+
+            var userMessage = messageInput.value;
+            if (userMessage.trim() === '') {
+                return;
+            }
+
+            // Display user message
+            var userMessageElement = document.createElement('div');
+            userMessageElement.className = 'message user';
+            userMessageElement.textContent = userMessage;
+            messages.appendChild(userMessageElement);
+            messageInput.value = '';
+            messages.scrollTop = messages.scrollHeight;
+
+            // Show loading spinner
+            sendButton.classList.add('loading');
+            sendButton.disabled = true;
+
+            // Send message to server
+            fetch('./api/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: userMessage }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove loading spinner
+                sendButton.classList.remove('loading');
+                sendButton.disabled = false;
+
+                // Display server response
+                var serverMessageElement = document.createElement('div');
+                serverMessageElement.className = 'message server';
+                serverMessageElement.textContent = data.response;
+                messages.appendChild(serverMessageElement);
+                messages.scrollTop = messages.scrollHeight;
+            })
+            .catch(error => {
+                // Remove loading spinner
+                sendButton.classList.remove('loading');
+                sendButton.disabled = false;
+
+                // Display error message
+                var serverMessageElement = document.createElement('div');
+                serverMessageElement.className = 'message server';
+                serverMessageElement.textContent = 'Error: ' + error.message;
+                messages.appendChild(serverMessageElement);
+                messages.scrollTop = messages.scrollHeight;
+            });
+        }
+    </script>
+</body>
+</html>
