@@ -1,0 +1,434 @@
+# Standard Library Imports
+import json
+import os
+import sys
+from datetime import datetime
+from urllib.parse import urlparse, parse_qs
+import time
+
+# Third-Party Imports
+import requests
+from requests.auth import HTTPBasicAuth
+import twilio
+from twilio.rest import Client
+from twilio.http.http_client import TwilioHttpClient
+# from sqlalchemy import (
+#     create_engine, Column, Integer, String, Text, DateTime, JSON, ForeignKey, Boolean, event
+# )
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+
+# Internal Imports
+# from models.asana_task_manager import AsanaTaskManager
+from models.assistant import restore, run, run_new, save_txt_in_drct, handle_exception, change_in_file
+# new
+from models.context_manage import save_context, get_context_field
+from models.chm_api_getters import get_teacher_data, check_registration_status
+#
+from models.chm_config_loader import Settings
+from models.db_store import store_user_message, store_asana_task
+from models.database import get_session_factory, UserMessage, AsanaTask, UserMedia
+from models.html_utils import serve_html
+# from models.image_handler import process_image
+# from models.media_handler import process_media
+
+from models.send_whatsapp_message import send_whatsapp_message
+#from models.sms import SmsMessage, convert_phone_number
+
+import logging
+
+
+# Initialize logger
+##########################################################################
+# Create logger instance
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+# Create a single file handler with UTF-8 encoding
+file_handler = logging.FileHandler('/home/donehr2ai/logs/debug.log', encoding='utf-8')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+# Add the handler to the logger
+logger.addHandler(file_handler)
+
+# Test logging
+logger.info("\ndebug 01")
+logger.info("1. TESTING LOG ENTRY!!")
+##########################################################################
+
+## init ## Global Variables
+context = {
+    'thread_store': "",
+    'teacher_name': "",
+    'user_phone': "",
+    'teacherId': "",
+    'user_message': "",
+    'classesId': [],
+    'studentsId': [],
+    'status': "new"
+}
+conversation_start_time = None
+logger.info(f"0 the status is::: {context['status']}")
+## config file loading ##
+settings = Settings()
+
+## Initialize Twilio Client ##
+http_client = TwilioHttpClient(timeout=120)  # Set timeout to 120 seconds
+client = Client(settings.account_sid, settings.auth_token, http_client=http_client) # Create a custom HTTP client with a specified timeout 
+
+## Initialize DB ##
+new_user_message = None
+SessionFactory = get_session_factory(settings.DATABASE_URL) # This is a factory
+
+
+####################### Handle application helloo!!! ##########################################
+# the main function
+def application(environ, start_response):
+    
+    ########## TODO: should I delete this??
+    def logging_start_response(status, headers, exc_info=None):
+        logger.info(f"Starting response: Status={status}, Headers={headers}")
+        return start_response(status, headers, exc_info)
+    ##########
+    
+    #logger.info("in the application function:")
+    session = SessionFactory()
+    path = environ.get('PATH_INFO', '').lstrip('/')
+    
+    #logger.info(f"2. Received path: {path}")  # Log the path to see if it's matching
+    #logger.info(f"3. Request method: {environ['REQUEST_METHOD']}")  # Log request method to ensure it's POST
+    
+    try:
+        ###### 0. HTML frontend
+        if path == '':
+            return serve_html(start_response)
+            
+        ###### ChessMagic API ######
+        # elif path == 'api/chessmagic' and environ['REQUEST_METHOD'] == 'POST':
+        #     logger.info("Start interaction with ChessMagic API")
+        #     return handle_chm_get_request(environ, start_response, session) ## TODO: change to handle_chm_set_request
+    
+        ###### Chat API (Internal App Requests) handle all the whatsaap interactions needed ######
+        elif path == 'api/chat' and environ['REQUEST_METHOD'] == 'POST':
+            #logger.info("4. The WhatsApp message was recognized as path == 'api/chat'!!")
+            return handle_twilio_request(environ, start_response, session)
+
+        else:
+            raise ValueError(f"Unhandled path: {path}")
+            
+    except Exception as e:
+        logger.error(f"Application error: {e}")
+        start_response('500 Internal Server Error', [('Content-Type', 'application/json')])
+        return [json.dumps({'status': 'error', 'message': 'Server error'}).encode('utf-8')]
+        
+##########################################################
+
+# 2. Handle Chess Magic Requests (REST API) - GET requests
+# def handle_chm_get_request(environ, start_response, session):
+
+
+                        ########### Helper Functions For the handle_chm_get_request func ###########
+#%%%%%%%%%%%%%%%%%%%%%%%%% helper func #1 - Get Teacher Data and Save Data to Database (JSON file)
+
+
+#%%%%%%%%%%%%%%%%%%%%%%%%% helper func #3 - Get data about a student and Save Data to Database (JSON file)
+
+        
+
+#%%%%%%%%%%%%%%%%%%%%%%%%% helper func #4 - 
+# 3. Handle Chess Magic Requests (REST API) - SET requests (the function that Angelina sends help to a student via it)
+#def handle_chm_set_request(environ, start_response, session):
+
+########################################################## 
+def reset_conversation(time_variable, conversation_start_time):
+    # for now: time_variable = 4 minutes
+    elapsed_time = (time.time() - conversation_start_time) / 60  # Convert to minutes
+    now = datetime.now
+    if elapsed_time >= time_variable:
+        context['status'] = "new"
+        context['user_message'] = ""
+        conversation_start_time = None  # Reset the timer
+        logger.info(f"Conversation timeout. Status reset to 'new'. and time_variable: {time_variable}")
+        logger.info(f"(time.time() - conversation_start_time) / 60 : {elapsed_time}")
+        logger.info(f"TTTTTTTTTTTTTTTTTTTTTtime now: {now}")
+        #print(now)
+    else:
+        logger.info(f"Conversation still active. Time elapsed: {elapsed_time} minutes, and the status is: {context['status']}")
+        #print(now)
+        context['status'] = "returning"
+    return
+##########################################################                      ##########################################################
+# 1. Handles requests received via WhatsApp: parse the message and print the relevant phone number and the message to the file logs/debug.log
+
+def handle_twilio_request(environ, start_response, session):
+    #logger.info("\n NEW CALL")
+    ###
+    global conversation_start_time
+    # Initialize or reset the timer
+    if conversation_start_time is None:
+        conversation_start_time = time.time()  # Start the timer
+        # logger.info("New conversation started. Timer initialized.")
+    time_variable = 4
+    # Check elapsed time
+    elapsed_time = (time.time() - conversation_start_time) / 60  # Convert to minutes
+    if elapsed_time >= time_variable:  # Reset if time_variable minutes have passed
+        conversation_start_time = time.time()  # Reset the timer
+        logger.info(f"Timer reset after {time_variable} minutes. New start time: {conversation_start_time}")
+    else:
+        logger.info(f"Conversation still active. Time elapsed: {round(elapsed_time, 2)} minutes.")
+
+    # Re
+   # logger.info("New conversation started. Status set to 'returning'.")
+    ###
+    content_type = environ.get('CONTENT_TYPE', '')
+    #logger.info(f"Content-Type from environ: {content_type}")
+
+    # Read request body
+    content_length = int(environ.get('CONTENT_LENGTH', 0))
+    request_body = environ['wsgi.input'].read(content_length).decode('utf-8') if content_length > 0 else ''
+    try:
+        # Parse the request data based on content type
+        if content_type == 'application/json':
+            parsed_data = json.loads(request_body)
+        elif content_type == 'application/x-www-form-urlencoded':
+            parsed_data = {key: value[0] for key, value in parse_qs(request_body).items()}
+        else:
+            raise ValueError("Unsupported Content-Type")
+
+        #logger.info(f"Parsed data: {parsed_data}")
+
+        # Extract key data
+        user_message = parsed_data.get('Body', '').strip()
+        user_phone_number = parsed_data.get('From', '').replace('whatsapp:', '').strip()
+        ### NEW
+        if not user_message or not user_phone_number:
+            logger.warning("Missing user message or phone number.")
+            start_response('400 Bad Request', [('Content-Type', 'application/json')])
+            return [json.dumps({'status': 'error', 'message': 'Invalid request data'}).encode('utf-8')]
+
+
+        # for debug only 
+        the_registered_num = "0500000000" # "0523208085"  "0500000000"
+        # 1 Retrieve conversation history
+        conversation_history = restore(the_registered_num) #restore(user_phone_number)
+        logger.info("called save_context before the prompts job")
+        ##
+        is_registered = check_registration_status(the_registered_num, settings)
+        #logger.info("before the first call to get_context_field")
+        context['status'] = get_context_field(the_registered_num, "status")
+        logger.info(f"Determine the correct prompt **** and the registration status is: {context['status']}")
+        # 3 Update context
+        context['user_message'] = user_message
+        context['user_phone'] = the_registered_num
+        context['thread_store'] = conversation_history + f"\nUser: {user_message}"
+        
+        status = get_context_field(the_registered_num, "status")
+        if status is None:
+            logger.info(f"No status found for {the_registered_num}. Creating context file.")
+            save_context(the_registered_num, context)
+        else:
+            logger.info(f"Loaded status for {the_registered_num}: {status}")
+
+        # call get_teacher_data to update relevant fields in context
+# Print for debug ##############################################################
+        logger.info(f"Message from User:: {user_message}")
+        #logger.info(f"the user's phone number:: {context['user_phone']}")
+        ################################################################################
+
+        # 2. Determine the correct prompt based on the conversation history
+        static_prompt = settings.prompt_static 
+        prompt = settings.prompt_static
+        if is_registered:
+            get_teacher_data(the_registered_num, settings, context) # build the user's special prompt according to the relevant data about them
+            context["status"] = get_context_field(the_registered_num, "status")
+            
+            if context['status'] == "new":
+                #2
+                logger.info(f"2 the status is::: {context['status']}")
+                file_path = "./prompts/chess_magic_promps/prompt_new_reg.txt"
+                # ask the user what kind of help of they need
+                place_of_text = "start the conversation with a greeting line for the teacher:"
+                new_text = context['teacher_name']
+                change_in_file(file_path, new_text, place_of_text) # use the user's name for a greeting | change_in_file_simple(file_name, new_text, place_of_text):
+
+                prompt = settings.prompt_new_reg
+                context['status'] = "returning0"
+                save_context(the_registered_num, context) # save context after update
+            elif context['status'] == "returning0":
+                #3
+                #user_prompt = "./files/data_" + the_registered_num + "/thread_data.txt" iris
+                logger.info(f"3 the STATUS is::: {context['status']}")
+                #prompt = user_prompt #settings.prompt_returning0 # CHANGE : new prompt that explains to iris
+                prompt = settings.prompt_new_reg
+                # get the user message and send it to the ai
+                #change_in_file(user_prompt, user_message, ": you got this message from the teacher:") iris
+                ## NEW 
+                context['status'] = "returning0" ### for now
+                save_context(the_registered_num, context) # save after update
+        else:
+            #1
+            context['status'] = "new"
+            prompt = settings.prompt_new_unreg
+            logger.info(f"1 the status is::::: {context['status']}")
+#$%$%$%$$%$%$%$$%$%$%$$%$%$%$$%$%$%$$%$%$%$$%$%$%$      
+        # Generate AI response
+        logger.info(f"the prompt is: {prompt}")
+        ai_response = run(
+            thread_store=context['thread_store'],
+            openai_key=settings.openai_key,
+            assistant_id=settings.ANGELINA_ASSIST,
+            prompt=prompt,
+            static=static_prompt,
+            courses_combined=context.get('classes', ''),
+            message=user_message
+        )
+
+        #debug
+        logger.info(f"AI response generated: {ai_response} \n")
+
+        if not ai_response:
+            ai_response = "I'm sorry, I couldn't understand your message. Can you rephrase?"
+
+        # 5 Update and save conversation history
+        context['thread_store'] += f"\n{ai_response}\n"
+        save_txt_in_drct(context['thread_store'], context['user_phone'], "thread_conv_history")
+
+        # 6 Store user message in the database
+        store_user_message(session, message_type="NORMAL", context=context, results=ai_response)
+        session.commit()
+        logger.info(f"the phone number: {user_phone_number}")
+        #user_phone_number = user_phone_number.replace("+972", "0", 1)  # Replace the first occurrence
+        #logger.info(f"the phone number: {user_phone_number}")
+
+        logger.info(f"the phone number in context: {context['user_phone']}")
+        # 7 Send WhatsApp response
+        send_whatsapp_message(
+            client, f'whatsapp:{user_phone_number}', ai_response, from_number=settings.from_whatsapp_number
+        )
+
+        start_response('200 OK', [('Content-Type', 'application/json')])
+        return [json.dumps({'status': 'success', 'message': ai_response}).encode('utf-8')]
+    
+    except Exception as e:
+        response = handle_exception(e, start_response)
+        return response
+
+##########################################################
+def send_student_help_request(teacher_id, student_id, help_message):
+########################################################## 
+
+# %%
+    url = f"https://api-qa.chess-m.com/angelina/student-help?teacherId={teacher_id}&studentId={student_id}"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer YOUR_API_TOKEN"  # Replace with a valid token if required.
+    }
+    payload = {
+        "message": help_message
+    }
+
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()  # Raise an HTTPError for bad responses (4xx or 5xx).
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred: {e}")
+        return None
+    
+
+
+    '''
+    def send_student_help_request(teacher_id, student_id, help_message, api_url_base, api_key):
+    """
+        handle the set request
+        """
+    url = f"{api_url_base}/student-help?teacherId={teacher_id}&studentId={student_id}"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Api-Key": api_key
+    }
+    payload = {
+        "message": help_message
+    }
+
+    try:
+        logger.info(f"Sending help request for student {student_id} by teacher {teacher_id}")
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        
+        logger.info(f"Help successfully sent to student {student_id}: {response.json()}")
+        return {"status": "success", "data": response.json()}
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to send help to student {student_id}: {e}")
+        return {"status": "error", "message": str(e)}
+
+def parse_teacher_message(message, students):
+    """
+        dedecate to which student do the teacher wants to send help
+    """
+    # Lowercase and normalize message
+    message = message.lower()
+
+    # Keywords to detect intent
+    help_keywords = ["help", "assist", "support"]
+
+    # Check for intent
+    if any(keyword in message for keyword in help_keywords):
+        logger.info("Help intent detected.")
+
+        # Try to match student by ID
+        id_match = re.search(r"\bstudent id (\d+)\b", message)
+        if id_match:
+            student_id = int(id_match.group(1))
+            return {"intent": "help", "student_id": student_id, "message": message}
+
+        # Try to match student by name
+        for student in students:
+            if student["name"].lower() in message:
+                return {"intent": "help", "student_id": student["id"], "message": message}
+
+    # No intent or student found
+    logger.warning("No valid intent or student reference detected.")
+    return None
+
+
+
+def handle_teacher_message(message, teacher_id, class_id, settings):
+    """
+        we need to figureif the message from techer indecates sending help to a student
+        it might be some cases:
+        1. the message contains the student id
+        2. the message contains the student name
+        3. the message contains the student name and the student id
+        4. the message contains humaniraian text that says help Zohar
+    """
+    # Fetch class data
+    class_data = get_class_data(teacher_id, class_id, settings, "dummy_phone", {})
+
+    if class_data["result"]:
+        students = class_data["data"]["students"]  # List of students
+
+        # Parse teacher's message
+        result = parse_teacher_message(message, students)
+
+        if result and result["intent"] == "help":
+            student_id = result["student_id"]
+            help_message = "The teacher has sent you help. Please reach out if you need assistance."
+            
+            # Send help
+            response = send_student_help_request(
+                teacher_id, student_id, help_message, settings.api_url_base, settings.chm_api_key
+            )
+
+            if response["status"] == "success":
+                logger.info(f"Help sent successfully to student {student_id}.")
+            else:
+                logger.error(f"Failed to send help to student {student_id}: {response['message']}")
+        else:
+            logger.info("No actionable help intent detected in the message.")
+    else:
+        logger.error("Failed to fetch class data.")
+
+    
+    
+    
+    '''

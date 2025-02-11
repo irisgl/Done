@@ -1,0 +1,594 @@
+# Standard Library Imports
+import json
+import os
+import sys
+from datetime import datetime
+from urllib.parse import urlparse, parse_qs
+import time
+
+# Third-Party Imports
+import requests
+from requests.auth import HTTPBasicAuth
+import twilio
+from twilio.rest import Client
+from twilio.http.http_client import TwilioHttpClient
+from sqlalchemy import (
+    create_engine, Column, Integer, String, Text, DateTime, JSON, ForeignKey, Boolean, event
+)
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+
+# Internal Imports
+from models.asana_task_manager import AsanaTaskManager
+from models.assistant import save_txt, restore, read_config, run, read_file, run_reply, add_message, run_new, save_json, update_json
+from models.chm_config_loader import Settings
+from models.db_store import store_user_message, store_asana_task
+from models.database import init_db, get_session_factory, UserMessage, AsanaTask, UserMedia
+from models.html_utils import serve_html
+from models.image_handler import process_image
+from models.learndash_lead_manager import submit_elementor_form, get_woocommerce_customers_with_phone, get_courses
+
+#//// from models.learndash_lead_manager import 
+
+from models.media_handler import process_media
+from models.message_utils import extract_sms_data
+from models.send_whatsapp_message import send_whatsapp_message
+from models.sms import SmsMessage, convert_phone_number
+from models.logging_utils import setup_logger
+import logging
+
+
+# Initialize logger
+##########################################################################
+# Create logger instance
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create a single file handler with UTF-8 encoding
+file_handler = logging.FileHandler('/home/donehr2ai/logs/debug.log', encoding='utf-8')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+
+# Add the handler to the logger
+logger.addHandler(file_handler)
+
+
+
+# Test logging
+logger.info("\ndebug 01")
+logger.info("1. TESTING LOG ENTRY!!")
+##########################################################################
+
+
+# action from teacher: help student , start lesson , get class info , send lesson update
+# status to trach the current connected teacher: unregistered -> new -> returning , leaving
+# prompts: the name of the files are saved in the settings class
+
+## init ## Global Variables
+context = {
+    'thread_store': "",
+    'thread_background': "",
+    'teacher_name': "",
+    'user_phone': None,
+    'teacherId': "",
+    'user_message': "",
+    'classesId': [],
+    'schools': "",
+    'action' : "",
+    'status': "new"
+}
+conversation_start_time = None
+logger.info("global variable")
+## config file loading ##
+settings = Settings()
+
+## Initialize Twilio Client ##
+http_client = TwilioHttpClient(timeout=120)  # Set timeout to 120 seconds
+client = Client(settings.account_sid, settings.auth_token, http_client=http_client) # Create a custom HTTP client with a specified timeout 
+
+## Initialize DB ##
+new_user_message = None
+SessionFactory = get_session_factory(settings.DATABASE_URL) # This is a factory
+
+
+####################### Handle application helloo!!! ##########################################
+# the main function
+def application(environ, start_response):
+    
+    ########## TODO: should I delete this??
+    def logging_start_response(status, headers, exc_info=None):
+        logger.info(f"Starting response: Status={status}, Headers={headers}")
+        return start_response(status, headers, exc_info)
+    ##########
+    
+    #logger.info("in the application function:")
+    session = SessionFactory()
+    path = environ.get('PATH_INFO', '').lstrip('/')
+    
+    logger.info(f"2. Received path: {path}")  # Log the path to see if it's matching
+    logger.info(f"3. Request method: {environ['REQUEST_METHOD']}")  # Log request method to ensure it's POST
+    
+    try:
+        ###### 0. HTML frontend
+        if path == '':
+            return serve_html(start_response)
+            
+        ###### ChessMagic API ######
+        # elif path == 'api/chessmagic' and environ['REQUEST_METHOD'] == 'POST':
+        #     logger.info("Start interaction with ChessMagic API")
+        #     return handle_chm_get_request(environ, start_response, session) ## TODO: change to handle_chm_set_request
+    
+        ###### Chat API (Internal App Requests) handle all the whatsaap interactions needed ######
+        elif path == 'api/chat' and environ['REQUEST_METHOD'] == 'POST':
+            logger.info("4. The WhatsApp message was recognized as path == 'api/chat'!!")
+            return handle_twilio_request(environ, start_response, session)
+
+        else:
+            raise ValueError(f"Unhandled path: {path}")
+            
+    except Exception as e:
+        logger.error(f"Application error: {e}")
+        start_response('500 Internal Server Error', [('Content-Type', 'application/json')])
+        return [json.dumps({'status': 'error', 'message': 'Server error'}).encode('utf-8')]
+        
+##########################################################
+
+##########################################################
+
+
+# 2. Handle Chess Magic Requests (REST API) - GET requests
+# def handle_chm_get_request(environ, start_response, session):
+
+
+                        ########### Helper Functions For the handle_chm_get_request func ###########
+#%%%%%%%%%%%%%%%%%%%%%%%%% helper func #1 - Get Teacher Data and Save Data to Database (JSON file)
+def get_teacher_data(phone):
+    api_url = f"https://api-qa.chess-m.com/angelina/teacher?phone={phone}" 
+    headers = {"X-Api-Key": settings.chm_api_key}  
+    
+    try:
+        response = requests.get(api_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        # Fetch the teacher data
+        teacher_data = response.json().get('data', {})
+        
+        # Organize the data into a structured format
+        formatted_data = {
+            "result": True,
+            "error": "",
+            "data": {
+                "id": teacher_data.get("id", 0),
+                "fullName": teacher_data.get("fullName", ""),
+                "schools": [
+                    {
+                        "id": school.get("id", 0),
+                        "name": school.get("name", ""),
+                        "country": school.get("country", ""),
+                        "state": school.get("state", ""),
+                        "city": school.get("city", ""),
+                        "address": school.get("address", ""),
+                        "phone": school.get("phone", ""),
+                        "classes": [
+                            {
+                                "id": cls.get("id", 0),
+                                "name": cls.get("name", "")
+                            } for cls in school.get("classes", [])
+                        ]
+                    } for school in teacher_data.get("schools", [])
+                ]
+            }
+        }
+
+        # Save only the `data` field to the JSON file
+        save_json(json.dumps(formatted_data["data"], ensure_ascii=False, indent=4), phone)
+        
+        # Update context variables
+        context["teacherId"] = formatted_data["data"]["id"]
+        context["teacher_name"] = formatted_data["data"]["fullName"]
+        context["classesId"] = [
+            cls["id"]
+            for school in formatted_data["data"]["schools"]
+            for cls in school.get("classes", [])
+        ]
+        
+        return {"status": "success", "data": formatted_data["data"]}
+        
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch teacher data: {e}")
+        return {'status': 'error', 'message': str(e)}
+
+
+#%%%%%%%%%%%%%%%%%%%%%%%%% helper func #2 - Get Class Data and Save Data to Database (JSON file)
+def get_class_data(teacher_id, class_id, phone):
+    api_url = f"https://api-qa.chess-m.com/angelina/class?teacherId={teacher_id}&classId={class_id}"
+    headers = {"X-Api-Key": settings.chm_api_key}  
+
+    try:
+        response = requests.get(api_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        # Fetch the class data
+        class_data = response.json().get('data', {})
+        
+        # Format the response
+        formatted_data = {
+            "result": True,
+            "error": "",
+            "data": {
+                "id": class_data.get("id", 0),
+                "name": class_data.get("name", ""),
+                "students": [
+                    {
+                        "id": student.get("id", 0),
+                        "fullName": student.get("fullName", ""),
+                        "isOnline": student.get("isOnline", False),
+                        "lastHeartbeat": student.get("lastHeartbeat", {
+                            "year": 0, "month": 0, "day": 0,
+                            "hour": 0, "minute": 0, "second": 0
+                        }),
+                        "helpRequested": student.get("helpRequested", False),
+                        "currentLesson": student.get("currentLesson", 0),
+                        "currentLessonId": student.get("currentLessonId", 0),
+                        "currentChapter": student.get("currentChapter", 0),
+                        "currentChapterId": student.get("currentChapterId", 0),
+                        "currentChallenge": student.get("currentChallenge", 0),
+                        "currentChallengeId": student.get("currentChallengeId", 0),
+                        "currentChallengeName": student.get("currentChallengeName", {
+                            "additionalProp1": "", 
+                            "additionalProp2": "", 
+                            "additionalProp3": ""
+                        }),
+                        "lessonProgress": student.get("lessonProgress", 0),
+                        "overallScore": student.get("overallScore", 0),
+                        "points": student.get("points", 0),
+                        "rankingPoints": student.get("rankingPoints", 0),
+                        "coins": student.get("coins", 0),
+                        "solutionKeys": student.get("solutionKeys", 0),
+                        "currentLessonName": student.get("currentLessonName", {
+                            "additionalProp1": "", 
+                            "additionalProp2": "", 
+                            "additionalProp3": ""
+                        }),
+                        "currentChapterName": student.get("currentChapterName", {
+                            "additionalProp1": "", 
+                            "additionalProp2": "", 
+                            "additionalProp3": ""
+                        }),
+                        "maxLesson": student.get("maxLesson", 0),
+                        "maxLessonId": student.get("maxLessonId", 0),
+                        "maxLessonName": student.get("maxLessonName", {
+                            "additionalProp1": "", 
+                            "additionalProp2": "", 
+                            "additionalProp3": ""
+                        }),
+                        "maxChapter": student.get("maxChapter", 0),
+                        "maxChapterId": student.get("maxChapterId", 0),
+                        "maxChapterName": student.get("maxChapterName", {
+                            "additionalProp1": "", 
+                            "additionalProp2": "", 
+                            "additionalProp3": ""
+                        }),
+                        "maxChallenge": student.get("maxChallenge", 0),
+                        "maxChallengeId": student.get("maxChallengeId", 0),
+                        "maxChallengeName": student.get("maxChallengeName", {
+                            "additionalProp1": "", 
+                            "additionalProp2": "", 
+                            "additionalProp3": ""
+                        })
+                    } for student in class_data.get("students", [])
+                ]
+            }
+        }
+        
+        # Save the formatted data to a JSON file
+        update_json(json.dumps(formatted_data, ensure_ascii=False, indent=4), phone)
+
+        return formatted_data
+        
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch class data: {e}")
+        return {"result": False, "error": str(e), "data": {}}
+
+#%%%%%%%%%%%%%%%%%%%%%%%%% helper func #3 - Get data about a student and Save Data to Database (JSON file)
+def get_student_data(teacher_id, student_id):
+    api_url = f"https://api-qa.chess-m.com/angelina/student?teacherId={teacher_id}&studentId={student_id}"
+    headers = {"X-Api-Key": settings.chm_api_key}
+    try:
+        response = requests.get(api_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        return {'status': 'success', 'data': response.json()}
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch student data: {e}")
+        return {'status': 'error', 'message': str(e)}
+        
+
+#%%%%%%%%%%%%%%%%%%%%%%%%% helper func #4 - 
+# 3. Handle Chess Magic Requests (REST API) - SET requests
+#def handle_chm_set_request(environ, start_response, session):
+######################
+def change_in_file(file_name, new_text, place_of_text):
+    with open(file_name, 'r') as opened_file:
+        lines = opened_file.readlines()
+    for i, line in enumerate(lines):
+        if place_of_text in lines:
+            lines[i] = place_of_text + new_text + '\n'
+    with open(file_name, 'w') as opened_file:
+        opened_file.writelines(lines)
+
+########################################################## 
+def reset_conversation(time_variable, conversation_start_time):
+    # for now: time_variable = 4 minutes
+    elapsed_time = (time.time() - conversation_start_time) / 60  # Convert to minutes
+    now = datetime.now
+    if elapsed_time >= time_variable:
+        context['status'] = "new"
+        context['user_message'] = ""
+        conversation_start_time = None  # Reset the timer
+        logger.info(f"Conversation timeout. Status reset to 'new'. and time_variable: {time_variable}")
+        logger.info(f"(time.time() - conversation_start_time) / 60 : {elapsed_time}")
+        logger.info(f"TTTTTTTTTTTTTTTTTTTTTtime now: {now}")
+        #print(now)
+    else:
+        logger.info(f"Conversation still active. Time elapsed: {elapsed_time} minutes, and the status is: {context['status']}")
+        #print(now)
+        context['status'] = "returning"
+    return
+##########################################################                      ##########################################################
+# 1. Handles requests received via WhatsApp: parse the message and print the relevant phone number and the message to the file logs/debug.log
+
+def handle_twilio_request(environ, start_response, session):
+    logger.info("\n NEW CALL")
+    ###
+    global conversation_start_time
+    #conversation_start_time = time.time() # the time now
+    # Initialize or reset the timer
+    if conversation_start_time is None:
+        conversation_start_time = time.time()  # Start the timer
+        logger.info("New conversation started. Timer initialized.")
+    time_variable = 4
+    # Check elapsed time
+    elapsed_time = (time.time() - conversation_start_time) / 60  # Convert to minutes
+    if elapsed_time >= time_variable:  # Reset if time_variable minutes have passed
+        conversation_start_time = time.time()  # Reset the timer
+        logger.info(f"Timer reset after {time_variable} minutes. New start time: {conversation_start_time}")
+    else:
+        logger.info(f"Conversation still active. Time elapsed: {round(elapsed_time, 2)} minutes.")
+
+    # Re
+    logger.info("New conversation started. Status set to 'returning'.")
+    ###
+    content_type = environ.get('CONTENT_TYPE', '')
+    logger.info(f"Content-Type from environ: {content_type}")
+
+    # Read request body
+    content_length = int(environ.get('CONTENT_LENGTH', 0))
+    request_body = environ['wsgi.input'].read(content_length).decode('utf-8') if content_length > 0 else ''
+    try:
+        # Parse the request data based on content type
+        if content_type == 'application/json':
+            parsed_data = json.loads(request_body)
+        elif content_type == 'application/x-www-form-urlencoded':
+            parsed_data = {key: value[0] for key, value in parse_qs(request_body).items()}
+        else:
+            raise ValueError("Unsupported Content-Type")
+
+        #logger.info(f"Parsed data: {parsed_data}")
+
+        # Extract key data
+        user_message = parsed_data.get('Body', '').strip()
+        user_phone_number = parsed_data.get('From', '').replace('whatsapp:', '').strip()
+
+        if not user_message or not user_phone_number:
+            logger.warning("Missing user message or phone number.")
+            start_response('400 Bad Request', [('Content-Type', 'application/json')])
+            return [json.dumps({'status': 'error', 'message': 'Invalid request data'}).encode('utf-8')]
+
+        # 1 Retrieve conversation history
+        conversation_history = restore(user_phone_number)
+        # for debug only 
+        the_registered_num = "0500000000"
+        is_registered = check_registration_status(the_registered_num, settings)
+        logger.info(f"Determine the correct prompt:  %%%%%%%%%%%%%%%%%%%%% and the registration status is: {is_registered} ")
+        teacher_data_response = get_teacher_data(the_registered_num,)
+        class_data = get_class_data(context['teacherId'] ,context['classesId'][0], the_registered_num)
+        # Print for debug ##############################################################
+        logger.info(f"Message from User:: {user_message}")
+        #logger.info(f"the user's phone number:: {context['user_phone']}")
+        ################################################################################
+        ### prints for debug
+        #logger.info(f"checking and debuging:::::: teacher_data_response['data']: {teacher_data_response['data']}")
+        #logger.info(f"checking and debuging:::::: class data: {class_data}" )
+        #print("Hello!!!!!!!!!!!!!!!!!!!!!!!!!$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$")
+#$%$%$%$$%$%$%$$%$%$%$$%$%$%$$%$%$%$$%$%$%$$%$%$%$
+        # 2. Determine the correct prompt based on the conversation history
+        static_prompt = settings.prompt_static 
+        #logger.info("A LOT OF CHANGESSSSS")
+
+        prompt = settings.prompt_static
+        if is_registered:
+            if context['status'] == "new":
+                #2
+                logger.info(f"2 the status is::: {context['status']}")
+                context['status'] = "returning"
+                prompt = settings.prompt_new_reg  # ask the user what kind of help of they need
+                # modify the relevant prompt properly:
+                go_to = "start the conversation with a greeting line for the teacher:"
+                add_text = {context['teacher_name']}
+                change_in_file(prompt, go_to, add_text) # use the user's name for a greeting line
+                #
+                logger.info("*&*&*&*& last thing before the 3rd status *&*&*&*& ")
+                reset_conversation(time_variable, conversation_start_time) # chek if to rset the conversation
+            elif context['status'] == "returning":
+                #3
+                logger.info(f"3 the STATUS is::: {context['status']}")
+                prompt = settings.prompt_returning # CHANGE : new prompt that explains to 
+                                                # Angelina how to fetch the relevant data 
+                #save the response in: file_path = './files/background_file'
+                file_path = './files/background_file'
+                # run_new(thread_store, openai_key, assistant_id, prompt, message)
+                
+                save_txt(context['thread_background'], context['user_phone'], file_path)
+                txt_to_ai = "From the following user message, extract the class ID or any relevant numeric identifier. If no class ID is found, return 'None'"
+                prompt_txt = f"{txt_to_ai} + (" + context['user_message'] + "), get the class id"
+                secret_response = run_new(
+                    thread_store=context['thread_background'],
+                    openai_key=settings.openai_key,
+                    assistant_id=settings.ANGELINA_ASSIST,
+                    prompt=prompt_txt,
+                    message=user_message
+                )
+                context['thread_background'] = "User: " + context['thread_background'] + "\n" + secret_response
+                extracted_class_id = secret_response.strip()
+                if extracted_class_id.lower() == "none":
+                    extracted_class_id = None
+                # else: we extract the id from the AI response
+                #### check if we are still in the same conversation
+                reset_conversation(time_variable, conversation_start_time )
+        else:
+            #1
+            context['status'] = "new"
+            prompt = settings.prompt_new_unreg
+            logger.info(f"1 the status is::::: {context['status']}")
+        # if not is_registered:                                                # CHECKED
+        #     # 1
+        #     logger.info(f"1 the status is::::: {context['status']}")
+        #     prompt = settings.prompt_new_unreg
+        #     # update context
+        #     context['status'] = "new"
+            #### check if we are still in the same conversation
+        # elif is_registered and context['status'] == 'new':
+        #     #2
+        #     logger.info(f"2 the status is::::: {context['status']}")
+        #     context['status'] = "returning"
+        #     prompt = settings.prompt_new_reg  # the user is already "returning"
+        #     ###################### modify the relevant prompt properly
+        #     go_to = "start the conversation with a greeting line for the teacher:"
+        #     add_text = {context['teacher_name']}
+        #     change_in_file(prompt, go_to, add_text) # use the user's name for a greeting line
+        #     logger.info("*&*&*&*& last thing before the 3rd status *&*&*&*& ")
+        #     #### check if we are still in the same conversation
+        #     reset_conversation(time_variable, conversation_start_time)
+        # elif is_registered and context['status'] == "returning":
+            # 3
+        #     logger.info(f"3 the status is::::: {context['status']}")
+        #     prompt = settings.prompt_returning # CHANGE : new prompt that explain to 
+        #                                        # Angelina how to fetch the relevant data 
+
+        #     #save the response in: file_path = './files/background_file'
+        #     file_path = './files/background_file'
+        #     # run_new(thread_store, openai_key, assistant_id, prompt, message)
+            
+        #     save_txt(context['thread_background'], context['user_phone'], file_path)
+            
+        #     secret_response = run_new(
+        #     thread_store=context['thread_background'],
+        #     openai_key=settings.openai_key,
+        #     assistant_id=settings.ANGELINA_ASSIST,
+        #     prompt=prompt,
+        #     message=user_message
+        # )
+        #     context['thread_background'] = context['thread_background'] + "\n" + secret_response
+        #     #api_key = settings.api_key
+        #     prompt = "from this message: (" + context['user_message'] + "), get the class id"
+        #     #### check if we are still in the same conversation
+        #     reset_conversation(time_variable, conversation_start_time )
+        # elif is_registered and context['status'] == "final_stage":
+        #     logger.info(f"the status is::::: {context['status']}")
+        #     prompt = settings.prompt_final_stage
+        #     #### check if we are still in the same conversation
+        #     reset_conversation(time_variable, conversation_start_time )
+#$%$%$%$$%$%$%$$%$%$%$$%$%$%$$%$%$%$$%$%$%$$%$%$%$      
+        static = settings.prompt_static
+        # Generate AI response
+        logger.info(f"the prompt is: {prompt}")
+        ai_response = run(
+            thread_store=context['thread_store'],
+            openai_key=settings.openai_key,
+            assistant_id=settings.ANGELINA_ASSIST,
+            prompt=prompt,
+            static=static,
+            courses_combined=context.get('classes', ''),
+            message=user_message
+        )
+
+        #debug
+        logger.info(f"AI response generated: {ai_response}")
+
+        # 3 Update context
+        context['user_message'] = user_message
+        context['user_phone'] = user_phone_number
+        context['thread_store'] = conversation_history + f"\nUser: {user_message}"
+
+        if not ai_response:
+            ai_response = "I'm sorry, I couldn't understand your message. Can you rephrase?"
+
+        # 5 Update and save conversation history
+        context['thread_store'] += f"\n{ai_response}\n"
+        save_txt(context['thread_store'], context['user_phone'], './files/thread_conv_history') # save the updated context['thread_store'] to the relevant file thread_data{1234..}
+
+        # 6 Store user message in the database
+        store_user_message(session, message_type="NORMAL", context=context, results=ai_response)
+        session.commit()
+
+        # 7 Send WhatsApp response
+        send_whatsapp_message(
+            client, f'whatsapp:{user_phone_number}', ai_response, from_number=settings.from_whatsapp_number
+        )
+
+        start_response('200 OK', [('Content-Type', 'application/json')])
+        return [json.dumps({'status': 'success', 'message': ai_response}).encode('utf-8')]
+    
+    except Exception as e:
+        response = handle_exception(e, start_response)
+        return response
+
+##########################################################
+def handle_exception(e, start_response):
+    """Handles different types of exceptions and returns appropriate responses."""
+    if isinstance(e, json.JSONDecodeError):
+        logger.error(f"JSON decoding failed: {e}")
+        status = '400 Bad Request'
+        message = 'Invalid JSON'
+    elif isinstance(e, ValueError):
+        logger.error(f"ValueError: {e}")
+        status = '415 Unsupported Media Type'
+        message = str(e)
+    else:
+        logger.error(f"Unexpected error: {e}")
+        status = '500 Internal Server Error'
+        message = 'Server error'
+
+    start_response(status, [('Content-Type', 'application/json')])
+    response_body = json.dumps({'status': 'error', 'message': message}).encode('utf-8')
+    return [response_body]
+
+    
+##########################################################
+def check_registration_status(phone_number, settings):
+    
+    #api_key = settings.chm_api_key
+    url = f"https://api-qa.chess-m.com/angelina/teacher?phone={phone_number}"
+    headers = {"X-Api-Key": settings.chm_api_key}
+    params = {"phone": phone_number}
+    
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 401:
+        logger.error(f"API request failed with status code: 401")
+        return None
+    if response.status_code != 200:
+        logger.error(f"API request failed with status code: {response.status_code}")
+        return None
+    try:
+        data = response.json()
+        if data.get("result"):
+            logger.info(f"Teacher data found: {data['data']}")
+            return data['data']  # or process the data as needed
+        else:
+            logger.info(f"No teacher data found for phone number: {phone_number}")
+            return None
+    except ValueError:
+        logger.error(f"Error parsing response: {response.text}")
+        return None
+########################################################## 
+
+# %%
